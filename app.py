@@ -80,7 +80,8 @@ def fetch_hyperliquid():
                 if mp <= 0:
                     continue
                 sym, mult = norm_sym(u["name"])
-                rows.append({"venue": "hyperliquid", "sym": sym, "mark": mp / mult,
+                rows.append({"venue": "hyperliquid", "sym": sym, "raw": u["name"], "mult": mult,
+                             "mark": mp / mult,
                              "rate": float(c["funding"]), "interval_h": 1.0,
                              "oi_usd": float(c["openInterest"]) * mp,
                              "vol24": float(c.get("dayNtlVlm") or 0),
@@ -113,7 +114,8 @@ def fetch_lighter():
             mark = float(st_.get("last_trade_price") or ob.get("last_trade_price") or 0) / mult
             oi = ob.get("open_interest")
             oi_usd = float(oi) * mark * mult if oi not in (None, "") else None
-            rows.append({"venue": "lighter", "sym": sym, "mark": mark,
+            rows.append({"venue": "lighter", "sym": sym, "raw": ob["symbol"], "mult": mult,
+                         "mark": mark,
                          "rate": rates[mid], "interval_h": 1.0,
                          "oi_usd": oi_usd,
                          "vol24": float(st_.get("daily_quote_token_volume") or 0),
@@ -141,7 +143,7 @@ def fetch_aster():
         try:
             sym, mult = norm_sym(s)
             mark = float(p["markPrice"]) / mult
-            rows.append({"venue": "aster", "sym": sym, "mark": mark,
+            rows.append({"venue": "aster", "sym": sym, "raw": s, "mult": mult, "mark": mark,
                          "rate": float(p["lastFundingRate"]),
                          "interval_h": intervals.get(s, 8.0),
                          "oi_usd": None,
@@ -168,7 +170,8 @@ def fetch_paradex():
             bid, ask = float(s.get("bid") or 0), float(s.get("ask") or 0)
             spread = (ask - bid) / ((ask + bid) / 2) * 1e4 if bid > 0 and ask > 0 else None
             oi = float(s.get("open_interest") or 0) * float(s["mark_price"])
-            rows.append({"venue": "paradex", "sym": sym, "mark": mark,
+            rows.append({"venue": "paradex", "sym": sym, "raw": s["symbol"], "mult": mult,
+                         "mark": mark,
                          "rate": float(s.get("funding_rate") or 0),
                          "interval_h": periods[s["symbol"]],
                          "oi_usd": oi, "vol24": float(s.get("volume_24h") or 0),
@@ -191,7 +194,8 @@ def fetch_variational():
             bid, ask = float(q.get("bid") or 0), float(q.get("ask") or 0)
             spread = (ask - bid) / ((ask + bid) / 2) * 1e4 if bid > 0 and ask > 0 else \
                      (float(l["base_spread_bps"]) if l.get("base_spread_bps") else None)
-            rows.append({"venue": "variational", "sym": sym, "mark": mark,
+            rows.append({"venue": "variational", "sym": sym, "raw": l["ticker"], "mult": mult,
+                         "mark": mark,
                          "rate": float(l.get("funding_rate") or 0),
                          "interval_h": float(l.get("funding_interval_s") or 28800) / 3600.0,
                          "oi_usd": oi_usd, "vol24": float(l.get("volume_24h") or 0),
@@ -357,15 +361,7 @@ def main():
                "high APRs on illiquid names are squeeze-risk premium, not free money. Not investment advice.")
 
 
-if __name__ == "__main__":
-    try:
-        import streamlit.runtime
-        if streamlit.runtime.exists():
-            main()
-        else:
-            raise RuntimeError
-    except Exception:
-        # headless smoke test
+def _smoke_test():
         df, errors = fetch_all()
         print("errors:", errors)
         print(df.groupby("venue").agg(n=("sym", "count"), mode=("unit_mode", "first")))
@@ -383,5 +379,14 @@ if __name__ == "__main__":
         tq = tradfi[(tradfi["pair_liq_$"].fillna(0) >= 250_000) & (tradfi["px_diverge_%"] <= 2)]
         print("\nUNLOCKED TRADFI ARBS (>=250k liq):\n",
               tq[cols].head(15).to_string(index=False) if len(tq) else "none")
-else:
-    main()
+
+
+if __name__ == "__main__":
+    try:
+        import streamlit.runtime
+        if streamlit.runtime.exists():
+            main()
+        else:
+            raise RuntimeError
+    except Exception:
+        _smoke_test()

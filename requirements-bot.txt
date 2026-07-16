@@ -1,0 +1,5 @@
+# bot runtime (paper mode needs only these two)
+pandas
+requests
+# live trading on hyperliquid (safe to leave installed in paper mode)
+hyperliquid-python-sdk

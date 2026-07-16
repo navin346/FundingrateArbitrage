@@ -19,4 +19,36 @@ and you're suddenly directional (at 3x a ~30% move kills a leg; at 5x ~19%);
 (2) funding flips after you pay entry costs; (3) same ticker, different token.
 Worst case per pair ~ one leg's margin. Not investment advice.
 
+## 🤖 Autonomous bot
+
+`bot/` turns the radar into a 24/7 self-trading bot: it scans every
+`LOOP_MINUTES`, opens the best delta-neutral pair that passes all filters
+(short the high-funding venue, long the low), accrues funding, and exits on
+spread collapse / max hold / stop-loss / divergence — no intervention needed.
+
+```bash
+pip install -r requirements-bot.txt
+python -m bot.main            # paper mode (default): simulated fills, real market data
+python -m bot.main --status   # positions & PnL
+touch data/KILL               # emergency stop: flatten everything, halt
+```
+
+**Modes.** Paper (default) simulates fills net of fees+spread across all 5
+venues — safe, no keys. Live executes real orders on **Hyperliquid + Aster**
+and requires both `MODE=live` and the explicit
+`LIVE_CONFIRM=I_UNDERSTAND_LIVE_TRADING_RISKS` interlock plus API keys
+(Hyperliquid agent wallet — trade-only, cannot withdraw; Aster trade-only
+key, IP-whitelisted). See `.env.example` for every knob.
+
+**Controls baked in:** max open pairs & total notional caps, per-pair
+stop-loss, daily-loss halt, entry sanity caps (liquidity, price-match,
+breakeven, APR ceiling for data glitches), cooldowns, one-legged-position
+detection (closes the survivor immediately), error-streak halt, kill file,
+Telegram alerts on every action + daily heartbeat.
+
+**Deploy free:** paper mode runs serverless on GitHub Actions
+(`.github/workflows/paper-bot.yml`, active once merged to main); live mode
+belongs on an always-free VM (Oracle Cloud / GCP e2-micro) with Docker —
+step-by-step in [DEPLOY.md](DEPLOY.md).
+
 **PS**: This is not an investment advice.

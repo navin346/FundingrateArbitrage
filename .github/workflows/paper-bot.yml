@@ -1,0 +1,50 @@
+# Free, serverless paper-trading: GitHub Actions runs one bot tick every 30
+# minutes and persists state between runs with the Actions cache. Costs
+# nothing on a public repo (and stays within the free minutes on private).
+#
+# NOTE: scheduled workflows only run from the DEFAULT branch — merge this to
+# main to activate. GitHub pauses schedules after 60 days without a commit;
+# push anything (or re-enable in the Actions tab) to resume.
+#
+# PAPER MODE ONLY. Do not put live keys in this workflow: Actions cron is
+# best-effort (runs can be delayed or skipped), which is fine for a simulated
+# track record but not for managing real positions. Run live on a VM instead.
+name: paper-bot
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: paper-bot
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MODE: paper
+      LOOP_MINUTES: "30"
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install pandas requests
+      - name: restore bot state
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: paper-bot-state-${{ github.run_id }}
+          restore-keys: paper-bot-state-
+      - name: run one tick
+        run: python -m bot.main --once
+      - name: show status
+        run: python -m bot.main --status

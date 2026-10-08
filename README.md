@@ -46,6 +46,8 @@ breakeven, APR ceiling for data glitches), cooldowns, one-legged-position
 detection (closes the survivor immediately), error-streak halt, kill file,
 Telegram alerts on every action + daily heartbeat.
 
+**Backtest:** `python -m backtest.run` replays the strategy on 4 months of real Hyperliquid/Aster funding + prices; results and caveats in [backtest/RESULTS.md](backtest/RESULTS.md) (headline: default settings churn and lose to fees; patient settings are roughly break-even to slightly positive).
+
 **Dashboard:** `index.html` + `api/scan.py` deploy to Vercel in one click (see [DEPLOY.md](DEPLOY.md)); `streamlit run app.py` still works locally after `pip install -r requirements-streamlit.txt`.
 
 **Deploy free:** paper mode runs serverless on GitHub Actions

@@ -52,6 +52,7 @@ class Params:
     smooth_exit_h: int = 1
     min_hold_h: int = 0
     rt_cost_pct: float = RT_COST_PCT      # round-trip fees+spread, both legs, % of notional
+    cost_mult: float = 1.0                # stress multiplier on per-symbol measured costs
     cooldown_per_symbol: bool = False     # True = fix: block re-entry in EITHER direction
     require_current_sign: bool = False    # entry also needs the instantaneous spread to agree
 
@@ -117,6 +118,8 @@ class Data:
         d.syms = [self.syms[i] for i in idx]
         d.vol = [self.vol[i] for i in idx]
         d.k = len(idx)
+        if getattr(self, "rt_cost", None) is not None:
+            d.rt_cost = np.asarray(self.rt_cost)[idx]
         d._roll = {}
         return d
 
@@ -134,12 +137,15 @@ class Data:
 def simulate(D, p, t_start, t_end):
     """Run hours [t_start, t_end). Returns list of trade dicts (all closed; leftovers marked at end)."""
     ent, ext = D.smoothed(p.smooth_entry_h), D.smoothed(p.smooth_exit_h)
-    cost_usd = p.notional * p.rt_cost_pct / 100
+    # per-symbol measured cost if the dataset provides it (scaled by cost_mult), else the flat model
+    cvec = (np.asarray(D.rt_cost) * p.cost_mult) if getattr(D, "rt_cost", None) is not None \
+        else np.full(D.k, p.rt_cost_pct)
     open_, cool, trades, closes = {}, {}, [], []
     halt_until = -1
 
     def close(s, t, reason):
         pos = open_.pop(s)
+        cost_usd = p.notional * cvec[s] / 100
         pnl = pos["basis"](t) + pos["fund"](t) - cost_usd
         trades.append({"sym": D.syms[s], "t_in": pos["t"], "t_out": t, "hold_h": t - pos["t"],
                        "dir": "short_ast" if pos["short_ast"] else "short_hl",
@@ -157,7 +163,7 @@ def simulate(D, p, t_start, t_end):
                 continue
             sp = ext[t, s]
             g = (sp if pos["short_ast"] else -sp) if not np.isnan(sp) else np.nan
-            unreal = pos["basis"](t) + pos["fund"](t) - cost_usd
+            unreal = pos["basis"](t) + pos["fund"](t) - p.notional * cvec[s] / 100
             div = abs(ph - pa) / ((ph + pa) / 2) * 100
             held = t - pos["t"]
             reason = None
@@ -184,7 +190,7 @@ def simulate(D, p, t_start, t_end):
         row = ent[t]
         g = np.abs(row)
         ok = ~np.isnan(g) & (g >= p.min_entry_apr) & (g <= p.max_entry_apr)
-        ok &= p.rt_cost_pct / (np.where(g > 0, g, np.nan) / 365) <= p.max_breakeven_days
+        ok &= cvec / (np.where(g > 0, g, np.nan) / 365) <= p.max_breakeven_days
         ph, pa = D.pxh[t], D.pxa[t]
         ok &= ~np.isnan(ph) & ~np.isnan(pa)
         with np.errstate(invalid="ignore"):

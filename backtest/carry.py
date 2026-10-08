@@ -33,6 +33,7 @@ class CarryParams:
     notional: float = 600.0      # per leg per pair
     lev: float = 3.0
     rt_cost_pct: float = RT_COST_PCT
+    cost_mult: float = 1.0
 
 
 _sign_cache = {}
@@ -57,7 +58,9 @@ def run_carry(D, p, t_start, t_end):
     """Returns per-period DataFrame [t, pnl, funding, basis, cost, n_pos]."""
     m, stab = _mean(D, p.window_h), _stab(D, p.window_h)
     N = p.notional
-    half = N * p.rt_cost_pct / 200.0
+    cvec = (np.asarray(D.rt_cost) * p.cost_mult) if getattr(D, "rt_cost", None) is not None \
+        else np.full(D.k, p.rt_cost_pct)
+    halfv = N * cvec / 200.0
     held = {}                                   # symbol -> +1 (short Aster/long HL) or -1
     times = list(range(t_start, t_end - 1, p.rebalance_h)) + [t_end - 1]
     rows = []
@@ -73,8 +76,8 @@ def run_carry(D, p, t_start, t_end):
                     and not np.isnan(D.pxh[t, s]) and not np.isnan(D.pxa[t, s]))
             if not keep:
                 del held[s]
-                cost += half                    # close leg of the fee
-                by_sym[s] = by_sym.get(s, 0.0) - half
+                cost += halfv[s]                # close leg of the fee
+                by_sym[s] = by_sym.get(s, 0.0) - halfv[s]
         # ---- fill free slots with the best candidates
         if len(held) < p.top_k:
             g = np.abs(row)
@@ -88,8 +91,8 @@ def run_carry(D, p, t_start, t_end):
                     break
                 if ok[s] and s not in held:
                     held[s] = int(np.sign(row[s]))
-                    cost += half                # open leg of the fee
-                    by_sym[s] = by_sym.get(s, 0.0) - half
+                    cost += halfv[s]            # open leg of the fee
+                    by_sym[s] = by_sym.get(s, 0.0) - halfv[s]
         # ---- earn over (t, t2]
         fund = basis = 0.0
         for s, sg in held.items():
@@ -104,9 +107,9 @@ def run_carry(D, p, t_start, t_end):
                 basis += b_s
                 by_sym[s] = by_sym.get(s, 0.0) + b_s
         if i == len(times) - 2:                 # close everything at the end
-            cost += half * len(held)
             for s in held:
-                by_sym[s] = by_sym.get(s, 0.0) - half
+                cost += halfv[s]
+                by_sym[s] = by_sym.get(s, 0.0) - halfv[s]
         rows.append({"t": t, "pnl": fund + basis - cost, "funding": fund, "basis": basis,
                      "cost": cost, "n_pos": len(held), "hours": t2 - t})
     out = pd.DataFrame(rows)

@@ -22,7 +22,7 @@ import app  # noqa: E402
 HL = "https://api.hyperliquid.xyz/info"
 AST = "https://fapi.asterdex.com"
 H = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
-OUT = Path("data/backtest")
+OUT = Path("data/backtest")  # overridden by --out
 HOUR = 3600 * 1000
 
 
@@ -57,9 +57,17 @@ def hl_funding(coin, start, end):
 
 
 def hl_px(coin, start, end):
-    j = _retry(lambda: requests.post(HL, json={"type": "candleSnapshot", "req": {
-        "coin": coin, "interval": "1h", "startTime": start, "endTime": end}}, timeout=25))
-    return [(x["t"], float(x["c"])) for x in j]
+    out, t = [], start
+    while t < end:
+        j = _retry(lambda: requests.post(HL, json={"type": "candleSnapshot", "req": {
+            "coin": coin, "interval": "1h", "startTime": t,
+            "endTime": min(end, t + 4000 * HOUR)}}, timeout=25))
+        if not j:
+            t += 4000 * HOUR
+            continue
+        out += [(x["t"], float(x["c"])) for x in j]
+        t = j[-1]["t"] + HOUR
+    return sorted(set(out))
 
 
 def ast_funding(sym, start, end):
@@ -128,7 +136,10 @@ def main():
     ap.add_argument("--days", type=int, default=120)
     ap.add_argument("--top", type=int, default=60)
     ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--out", default="data/backtest")
     a = ap.parse_args()
+    global OUT
+    OUT = Path(a.out)
     OUT.mkdir(parents=True, exist_ok=True)
     end = int(time.time() * 1000)
     start = end - a.days * 24 * HOUR

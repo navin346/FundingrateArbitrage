@@ -51,6 +51,9 @@ class Params:
     smooth_entry_h: int = 1
     smooth_exit_h: int = 1
     min_hold_h: int = 0
+    rt_cost_pct: float = RT_COST_PCT      # round-trip fees+spread, both legs, % of notional
+    cooldown_per_symbol: bool = False     # True = fix: block re-entry in EITHER direction
+    require_current_sign: bool = False    # entry also needs the instantaneous spread to agree
 
     @property
     def notional(self):
@@ -118,7 +121,7 @@ class Data:
 def simulate(D, p, t_start, t_end):
     """Run hours [t_start, t_end). Returns list of trade dicts (all closed; leftovers marked at end)."""
     ent, ext = D.smoothed(p.smooth_entry_h), D.smoothed(p.smooth_exit_h)
-    cost_usd = p.notional * RT_COST_PCT / 100
+    cost_usd = p.notional * p.rt_cost_pct / 100
     open_, cool, trades, closes = {}, {}, [], []
     halt_until = -1
 
@@ -129,7 +132,7 @@ def simulate(D, p, t_start, t_end):
                        "dir": "short_ast" if pos["short_ast"] else "short_hl",
                        "gross_entry": pos["gross"], "funding": pos["fund"](t), "basis": pos["basis"](t),
                        "cost": cost_usd, "pnl": pnl, "reason": reason})
-        cool[(s, pos["short_ast"])] = t
+        cool[s if p.cooldown_per_symbol else (s, pos["short_ast"])] = t
         closes.append((t, pnl))
 
     for t in range(t_start, t_end):
@@ -168,7 +171,7 @@ def simulate(D, p, t_start, t_end):
         row = ent[t]
         g = np.abs(row)
         ok = ~np.isnan(g) & (g >= p.min_entry_apr) & (g <= p.max_entry_apr)
-        ok &= RT_COST_PCT / (np.where(g > 0, g, np.nan) / 365) <= p.max_breakeven_days
+        ok &= p.rt_cost_pct / (np.where(g > 0, g, np.nan) / 365) <= p.max_breakeven_days
         ph, pa = D.pxh[t], D.pxa[t]
         ok &= ~np.isnan(ph) & ~np.isnan(pa)
         with np.errstate(invalid="ignore"):
@@ -177,7 +180,9 @@ def simulate(D, p, t_start, t_end):
             if not ok[s]:
                 continue
             short_ast = bool(row[s] > 0)
-            if s in open_ or t - cool.get((s, short_ast), -1e9) < p.cooldown_h:
+            if s in open_ or t - cool.get(s if p.cooldown_per_symbol else (s, short_ast), -1e9) < p.cooldown_h:
+                continue
+            if p.require_current_sign and not (np.sign(D.spread[t, s]) == np.sign(row[s]) and abs(D.spread[t, s]) >= p.min_entry_apr / 2):
                 continue
             n = p.notional
             qh, qa = n / ph[s], n / pa[s]

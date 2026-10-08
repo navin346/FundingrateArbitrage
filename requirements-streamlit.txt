@@ -1,0 +1,4 @@
+# only for the optional local Streamlit UI:  pip install -r requirements-streamlit.txt && streamlit run app.py
+# (kept out of requirements.txt on purpose: Vercel installs that file, and Streamlit would blow the function size limit)
+-r requirements.txt
+streamlit

@@ -12,6 +12,30 @@ funding payments it predicts match what you can verify on the venues.
 
 ---
 
+## Dashboard on Vercel (free Hobby plan)
+
+The web dashboard is `index.html` + the serverless function `api/scan.py`
+(config in `vercel.json`). It is read-only market data: no keys, no trading.
+Streamlit (`app.py`) can NOT run on Vercel (it needs a long-running websocket
+server), which is why `requirements.txt` no longer lists it.
+
+1. vercel.com → **Add New… → Project** → import `navin346/FundingrateArbitrage`.
+2. Leave **Framework Preset = Other**, Root Directory = `./`, and leave Build /
+   Output / Install commands empty. No environment variables are needed.
+3. **Deploy.** Open the URL; the first load scans all 5 venues (~5-15 s), after
+   that the CDN serves a 5-minute cache.
+
+If a deploy fails, open the deployment's **Build Logs** / **Functions → Logs**
+tab and check: (a) Python version errors → Project Settings → Functions;
+(b) a venue returning 403/451 from Vercel's US region → set a closer region in
+`vercel.json` (e.g. `"regions": ["sin1"]`); the dashboard shows per-venue errors
+in a banner instead of failing.
+
+The trading bot does NOT run on Vercel (serverless functions can't hold a 24/7
+loop); it runs on GitHub Actions (paper) or an always-free VM (live), below.
+
+---
+
 ## Option A — Paper mode on GitHub Actions (zero infra)
 
 Already wired: `.github/workflows/paper-bot.yml`.

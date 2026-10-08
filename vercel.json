@@ -1,0 +1,9 @@
+{
+  "functions": {
+    "api/scan.py": {
+      "maxDuration": 60,
+      "memory": 1024,
+      "includeFiles": "app.py"
+    }
+  }
+}

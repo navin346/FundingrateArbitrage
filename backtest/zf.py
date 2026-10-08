@@ -36,16 +36,18 @@ class ZFData(Data):
         self.checks = {}
         for r in raw:
             pxh, pxa, fh, fa, ha, aa = (np.full(n, np.nan) for _ in range(6))
-            for t, c in r["lighter_px"]:
+            for t, c in (r.get("lighter_mark") or r["lighter_px"]):
                 i = t // HOUR - lo + 1
                 if 0 <= i < n:
                     pxh[i] = c / r["li_mult"]
-            for t, c in r["paradex_px"]:
+            for t, c in (r.get("paradex_mark") or r["paradex_px"]):
                 i = t // HOUR - lo + 1
                 if 0 <= i < n:
                     pxa[i] = c / r["px_mult"]
-            pxh_f = pd.Series(pxh).ffill(limit=3).values
-            pxa_f = pd.Series(pxa).ffill(limit=3).values
+            pxh_f = pd.Series(pxh).ffill().values          # for converting funding to a fraction only
+            pxa_f = pd.Series(pxa).ffill().values
+            pxa_f = np.where(np.isnan(pxa_f), pxh_f, pxa_f)  # same asset; venues differ by ~0.1%
+            pxh_f = np.where(np.isnan(pxh_f), pxa_f, pxh_f)
             # Lighter: per-unit USD value / unit price (both in Lighter's own units) -> fraction of notional
             vr = []
             for t, val, rate, dirn in r["lighter_funding"]:
@@ -67,6 +69,8 @@ class ZFData(Data):
                     aa[i] = r8 * 3 * 365 * 100           # published 8h rate, annualised %
             d = np.diff(idx, prepend=np.nan)
             unit_px = pxa_f * r["px_mult"]
+            if np.isnan(unit_px[np.isfinite(d)]).any():
+                raise ValueError(f"{r['sym']}: missing price to convert Paradex funding")
             fa = np.where(np.isnan(d), 0.0, d / unit_px)
             fa = np.nan_to_num(fa)
             fh = np.nan_to_num(fh)

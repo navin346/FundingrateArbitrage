@@ -80,11 +80,12 @@ def lighter(u, start_s, end_s):
     fund, px = [], []
     t = start_s
     while end_s - t >= 3600:
+        e = min(end_s, t + 740 * 3600)          # <=740 hourly rows per window, under the 750 cap
         j = get(L + "/fundings", {"market_id": u["li_id"], "resolution": "1h", "start_timestamp": t,
-                                   "end_timestamp": min(end_s, t + 740 * 3600), "count_back": 0}, LI_BUCKET)
-        f = j.get("fundings") or []
+                                   "end_timestamp": e, "count_back": 0}, LI_BUCKET)
+        f = [x for x in (j.get("fundings") or []) if t <= x["timestamp"] <= e]
         fund += [[x["timestamp"] * 1000, float(x["value"]), float(x["rate"]), x["direction"]] for x in f]
-        t = (f[-1]["timestamp"] + 1) if f else t + 740 * 3600
+        t = e                                   # always advance: no possibility of looping
     t = start_s
     while end_s - t >= 3600:
         e = min(end_s, t + 490 * 3600)
@@ -144,6 +145,7 @@ def main():
             print(f"{u['sym']:8s} cached", flush=True)
             continue
         t0 = time.time()
+        print(f"{u['sym']:8s} started", flush=True)
         try:
             ppx = paradex_px(u, start_ms, end_ms)
             if not ppx:

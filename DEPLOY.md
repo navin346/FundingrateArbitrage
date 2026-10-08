@@ -25,6 +25,16 @@ server), which is why `requirements.txt` no longer lists it.
 3. **Deploy.** Open the URL; the first load scans all 5 venues (~5-15 s), after
    that the CDN serves a 5-minute cache.
 
+Common failures:
+- **"This page doesn't exist" / 404 on the production URL**: Vercel deploys `main`;
+  the dashboard files must be merged into `main` first.
+- **`Found app.py but it does not define a top-level "app"`**: the project's
+  Framework Preset was auto-set to Flask/FastAPI because of the root `app.py`.
+  `vercel.json` sets `"framework": null` to override that; you can also set the
+  preset to **Other** in Project Settings → Build & Development.
+- Only ONE Vercel project should be connected to this repo. Delete duplicates
+  (each push otherwise builds once per project).
+
 If a deploy fails, open the deployment's **Build Logs** / **Functions → Logs**
 tab and check: (a) Python version errors → Project Settings → Functions;
 (b) a venue returning 403/451 from Vercel's US region → set a closer region in

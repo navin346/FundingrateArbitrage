@@ -66,6 +66,7 @@ class Data:
         raw = [json.loads(f.read_text()) for f in files]
         raw = [r for r in raw if r["hl_funding"] and r["ast_funding"] and r["hl_px"] and r["ast_px"]]
         self.syms = [r["sym"] for r in raw]
+        self.vol = [r.get("vol", 0.0) for r in raw]
         lo = min(min(t for t, _ in r["hl_funding"]) for r in raw) // HOUR
         hi = max(max(t for t, _ in r["hl_funding"]) for r in raw) // HOUR
         self.t0_ms = lo * HOUR
@@ -106,6 +107,18 @@ class Data:
         self.cfh, self.cfa = np.cumsum(self.fh, 0), np.cumsum(self.fa, 0)
         self.n, self.k = n, k
         self._roll = {}
+
+    def subset(self, idx):
+        """Shallow copy restricted to the given symbol columns (for universe-robustness tests)."""
+        import copy
+        d = copy.copy(self)
+        for name in ("pxh", "pxa", "hl_apr", "ast_apr", "spread", "cfh", "cfa", "fh", "fa"):
+            setattr(d, name, getattr(self, name)[:, idx])
+        d.syms = [self.syms[i] for i in idx]
+        d.vol = [self.vol[i] for i in idx]
+        d.k = len(idx)
+        d._roll = {}
+        return d
 
     def smoothed(self, h):
         if h <= 1:

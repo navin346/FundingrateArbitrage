@@ -61,6 +61,7 @@ def run_carry(D, p, t_start, t_end):
     held = {}                                   # symbol -> +1 (short Aster/long HL) or -1
     times = list(range(t_start, t_end - 1, p.rebalance_h)) + [t_end - 1]
     rows = []
+    by_sym = {}
     for i in range(len(times) - 1):
         t, t2 = times[i], times[i + 1]
         cost = 0.0
@@ -73,6 +74,7 @@ def run_carry(D, p, t_start, t_end):
             if not keep:
                 del held[s]
                 cost += half                    # close leg of the fee
+                by_sym[s] = by_sym.get(s, 0.0) - half
         # ---- fill free slots with the best candidates
         if len(held) < p.top_k:
             g = np.abs(row)
@@ -87,20 +89,29 @@ def run_carry(D, p, t_start, t_end):
                 if ok[s] and s not in held:
                     held[s] = int(np.sign(row[s]))
                     cost += half                # open leg of the fee
+                    by_sym[s] = by_sym.get(s, 0.0) - half
         # ---- earn over (t, t2]
         fund = basis = 0.0
         for s, sg in held.items():
             fa, fh = D.cfa[t2, s] - D.cfa[t, s], D.cfh[t2, s] - D.cfh[t, s]
-            fund += N * ((fa - fh) if sg > 0 else (fh - fa))
+            f_s = N * ((fa - fh) if sg > 0 else (fh - fa))
+            fund += f_s
+            by_sym[s] = by_sym.get(s, 0.0) + f_s
             dh, da = D.pxh[t2, s] - D.pxh[t, s], D.pxa[t2, s] - D.pxa[t, s]
             if not (np.isnan(dh) or np.isnan(da)):
                 qh, qa = N / D.pxh[t, s], N / D.pxa[t, s]
-                basis += qh * (dh if sg > 0 else -dh) + qa * (-da if sg > 0 else da)
+                b_s = qh * (dh if sg > 0 else -dh) + qa * (-da if sg > 0 else da)
+                basis += b_s
+                by_sym[s] = by_sym.get(s, 0.0) + b_s
         if i == len(times) - 2:                 # close everything at the end
             cost += half * len(held)
+            for s in held:
+                by_sym[s] = by_sym.get(s, 0.0) - half
         rows.append({"t": t, "pnl": fund + basis - cost, "funding": fund, "basis": basis,
                      "cost": cost, "n_pos": len(held), "hours": t2 - t})
-    return pd.DataFrame(rows)
+    out = pd.DataFrame(rows)
+    out.attrs["by_sym"] = {D.syms[k]: v for k, v in by_sym.items()}
+    return out
 
 
 def stats(df, p, label=""):

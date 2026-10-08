@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setu Funding Radar</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #14181f; --muted: #5d6675; --line: #e3e6eb;
+    --accent: #0b6bcb; --good: #0f8a4f; --warn: #b26a00; --bad: #c0362c; --row: #f1f4f8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1116; --card: #161b22; --ink: #e8ecf1; --muted: #8b95a5; --line: #262d38;
+      --accent: #4c9aff; --good: #3fb97a; --warn: #e0a030; --bad: #ef6b5e; --row: #1b222c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1116; --card: #161b22; --ink: #e8ecf1; --muted: #8b95a5; --line: #262d38;
+    --accent: #4c9aff; --good: #3fb97a; --warn: #e0a030; --bad: #ef6b5e; --row: #1b222c;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+  h1 { margin: 0; font-size: 22px; letter-spacing: -.01em; }
+  .sub { color: var(--muted); margin: 4px 0 18px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .stat b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--muted); font-size: 12px; }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+  .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; align-items: end; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  input, select, button { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+                          border-radius: 8px; padding: 7px 9px; min-width: 0; }
+  button { cursor: pointer; background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+  button.ghost { background: transparent; color: var(--ink); border-color: var(--line); font-weight: 500; }
+  button:disabled { opacity: .6; cursor: wait; }
+  .venues { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip { display: inline-flex; flex-direction: row; gap: 6px; color: var(--ink); align-items: center; border: 1px solid var(--line); border-radius: 999px;
+          padding: 4px 10px; font-size: 12px; cursor: pointer; user-select: none; }
+  .chip input { margin: 0; padding: 0; }
+  .banner { border: 1px solid var(--warn); color: var(--warn); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; font-size: 13px; }
+  .banner.err { border-color: var(--bad); color: var(--bad); }
+  .tablewrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--line); background: var(--card); }
+  table { border-collapse: collapse; width: 100%; min-width: 880px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 9px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2), th:nth-child(3), td:nth-child(3) { text-align: left; }
+  th { position: sticky; top: 0; background: var(--card); color: var(--muted); font-size: 12px; font-weight: 600;
+       cursor: pointer; user-select: none; }
+  th.sorted { color: var(--ink); }
+  tbody tr:nth-child(even) { background: var(--row); }
+  td.sym { font-weight: 700; }
+  .pos { color: var(--good); } .neg { color: var(--bad); } .mid { color: var(--warn); }
+  .empty { padding: 28px; text-align: center; color: var(--muted); }
+  .foot { color: var(--muted); font-size: 12px; margin-top: 16px; }
+  .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--accent);
+          border-radius: 50%; animation: s 0.8s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Setu <span aria-hidden="true">🌉</span> funding arbitrage radar</h1>
+    <div><button class="ghost" id="theme" title="Toggle light/dark">Theme</button>
+         <button id="refresh">Refresh</button></div>
+  </header>
+  <p class="sub">Lighter · Aster · Paradex · Variational · Hyperliquid — all venue pairs, interval-normalized funding,
+    net of fees and spread. Public read-only APIs, no keys. <span id="stamp"></span></p>
+
+  <div class="stats" id="stats"></div>
+  <div id="banners"></div>
+
+  <div class="panel">
+    <div class="filters">
+      <label>Min gross APR %<input id="minApr" type="number" value="80" min="0" step="10"></label>
+      <label>Min pair liquidity $<input id="minLiq" type="number" value="500000" min="0" step="50000"></label>
+      <label>Max price divergence %<input id="maxDiv" type="number" value="2" min="0" step="0.5"></label>
+      <label>Planned hold (days)<input id="hold" type="number" value="7" min="1" max="90"></label>
+      <label>Margin per leg $<input id="margin" type="number" value="300" min="50" step="50"></label>
+      <label>Leverage<select id="lev"></select></label>
+      <label>Symbol search<input id="q" type="search" placeholder="BTC, GOLD…"></label>
+    </div>
+    <div class="venues" id="venues"></div>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr id="head"></tr></thead>
+      <tbody id="body"></tbody>
+    </table>
+    <div class="empty" id="empty" hidden></div>
+  </div>
+
+  <p class="foot">Worst case per pair ≈ one leg's margin (a liquidation breaks neutrality). Funding flips; high APRs on
+    illiquid names are squeeze-risk premium, not free money. Data is cached ≤5 min. Not investment advice.</p>
+</div>
+
+<script>
+const COLS = [
+  ["sym", "Symbol"], ["long", "Long @"], ["short", "Short @"],
+  ["gross", "Gross APR %"], ["cost", "Round-trip cost %"], ["be", "Breakeven (days)"],
+  ["net", "Net APR (hold) %"], ["day", "$/day at size"], ["liq", "Pair liquidity $"], ["div", "Px diverge %"]
+];
+const $ = id => document.getElementById(id);
+let DATA = null, sortKey = "gross", sortDir = -1, venuesOn = new Set(), loading = false;
+
+const num = (id, d) => { const v = parseFloat($(id).value); return Number.isFinite(v) ? v : d; };
+const fmt = (n, d = 1) => n == null ? "–" : n.toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
+const usd = n => n == null ? "–" : "$" + Math.round(n).toLocaleString();
+
+function compute() {
+  const hold = Math.max(1, num("hold", 7)), notional = num("margin", 300) * num("lev", 3);
+  return DATA.pairs.map(p => ({
+    sym: p.sym, long: p["long@"], short: p["short@"], gross: p["gross_apr_%"], cost: p["rt_cost_%"],
+    be: p["rt_cost_%"] / (p["gross_apr_%"] / 365),
+    net: p["gross_apr_%"] - p["rt_cost_%"] * (365 / hold),
+    day: notional * p["gross_apr_%"] / 36500,
+    liq: p["pair_liq_$"], div: p["px_diverge_%"]
+  }));
+}
+
+function render() {
+  if (!DATA) return;
+  const minApr = num("minApr", 0), minLiq = num("minLiq", 0), maxDiv = num("maxDiv", 5);
+  const q = $("q").value.trim().toUpperCase();
+  let rows = compute().filter(r => r.gross >= minApr && (r.liq || 0) >= minLiq && r.div <= maxDiv
+    && venuesOn.has(r.long) && venuesOn.has(r.short) && (!q || r.sym.includes(q)));
+  rows.sort((a, b) => ((a[sortKey] > b[sortKey]) - (a[sortKey] < b[sortKey])) * sortDir
+    || a.sym.localeCompare(b.sym));
+
+  $("head").innerHTML = COLS.map(([k, label]) =>
+    `<th data-k="${k}" class="${k === sortKey ? "sorted" : ""}">${label}${k === sortKey ? (sortDir > 0 ? " ▲" : " ▼") : ""}</th>`).join("");
+  $("body").innerHTML = rows.slice(0, 300).map(r => {
+    const netCls = r.net > 0 ? "pos" : "neg", beCls = r.be <= 2 ? "pos" : r.be <= 5 ? "mid" : "neg";
+    return `<tr><td class="sym">${r.sym}</td><td>${r.long}</td><td>${r.short}</td>
+      <td>${fmt(r.gross)}</td><td>${fmt(r.cost, 2)}</td><td class="${beCls}">${fmt(r.be)}</td>
+      <td class="${netCls}">${fmt(r.net)}</td><td>${fmt(r.day, 2)}</td><td>${usd(r.liq)}</td><td>${fmt(r.div, 2)}</td></tr>`;
+  }).join("");
+  const empty = $("empty");
+  empty.hidden = rows.length > 0;
+  empty.textContent = "Nothing passes these filters right now. Funding spreads breathe — lower the APR filter or wait.";
+  $("stats").innerHTML = [
+    ["Venues live", Object.keys(DATA.venues).length], ["Markets scanned", DATA.markets],
+    ["Pair combos", DATA.pair_combos.toLocaleString()], ["Qualified now", rows.length],
+    ["Best gross APR", rows.length ? fmt(Math.max(...rows.map(r => r.gross)), 0) + "%" : "–"]
+  ].map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`).join("");
+}
+
+function setBanners(msgs) {
+  $("banners").innerHTML = msgs.map(([cls, m]) => `<div class="banner ${cls}">${m}</div>`).join("");
+}
+
+async function load() {
+  if (loading) return;
+  loading = true; $("refresh").disabled = true;
+  $("stamp").innerHTML = '<span class="spin"></span>Scanning venues (first load can take ~15 s)…';
+  try {
+    const res = await fetch("/api/scan");
+    const j = await res.json();
+    if (!res.ok || j.error) throw new Error(j.error || "HTTP " + res.status);
+    DATA = j;
+    if (!venuesOn.size) Object.keys(j.venues).forEach(v => venuesOn.add(v));
+    $("venues").innerHTML = Object.keys(j.venues).sort().map(v =>
+      `<label class="chip"><input type="checkbox" data-v="${v}" ${venuesOn.has(v) ? "checked" : ""}>${v} · ${j.venues[v]}</label>`).join("");
+    const b = [];
+    const errs = Object.entries(j.errors || {});
+    if (errs.length) b.push(["", "Venue errors: " + errs.map(([v, e]) => `${v} (${e})`).join("; ")]);
+    setBanners(b);
+    $("stamp").textContent = "Snapshot: " + new Date(j.updated * 1000).toLocaleString() + " · refreshes every 5 min";
+    render();
+  } catch (e) {
+    setBanners([["err", "Could not load data: " + e.message]]);
+    $("stamp").textContent = "";
+  } finally { loading = false; $("refresh").disabled = false; }
+}
+
+$("lev").innerHTML = [1, 2, 3, 4, 5, 6, 8, 10].map(n => `<option ${n === 3 ? "selected" : ""}>${n}</option>`).join("");
+document.addEventListener("input", e => { if (e.target.closest(".filters")) render(); });
+$("venues").addEventListener("change", e => {
+  const v = e.target.dataset.v; if (!v) return;
+  e.target.checked ? venuesOn.add(v) : venuesOn.delete(v); render();
+});
+$("head").addEventListener("click", e => {
+  const k = e.target.closest("th")?.dataset.k; if (!k) return;
+  sortDir = k === sortKey ? -sortDir : -1; sortKey = k; render();
+});
+$("refresh").addEventListener("click", load);
+$("theme").addEventListener("click", () => {
+  const r = document.documentElement, dark = getComputedStyle(r).getPropertyValue("--bg").trim() === "#0e1116";
+  r.dataset.theme = dark ? "light" : "dark";
+});
+load(); setInterval(load, 5 * 60 * 1000);
+</script>
+</body>
+</html>

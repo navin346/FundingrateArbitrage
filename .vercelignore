@@ -1,0 +1,9 @@
+bot/
+data/
+.github/
+Dockerfile
+docker-compose.yml
+DEPLOY.md
+.env*
+requirements-bot.txt
+requirements-streamlit.txt

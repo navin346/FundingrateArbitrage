@@ -1,0 +1,8 @@
+{
+  "framework": null,
+  "functions": {
+    "api/scan.py": {
+      "maxDuration": 60
+    }
+  }
+}

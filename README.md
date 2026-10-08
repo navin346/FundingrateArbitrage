@@ -46,6 +46,8 @@ breakeven, APR ceiling for data glitches), cooldowns, one-legged-position
 detection (closes the survivor immediately), error-streak halt, kill file,
 Telegram alerts on every action + daily heartbeat.
 
+**Dashboard:** `index.html` + `api/scan.py` deploy to Vercel in one click (see [DEPLOY.md](DEPLOY.md)); `streamlit run app.py` still works locally after `pip install -r requirements-streamlit.txt`.
+
 **Deploy free:** paper mode runs serverless on GitHub Actions
 (`.github/workflows/paper-bot.yml`, active once merged to main); live mode
 belongs on an always-free VM (Oracle Cloud / GCP e2-micro) with Docker —

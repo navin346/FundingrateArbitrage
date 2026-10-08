@@ -4,6 +4,7 @@ All public read-only APIs, no keys. Run headless: python app.py
 Deploy: Streamlit Community Cloud, main file app.py
 """
 import math, time, json
+from concurrent.futures import ThreadPoolExecutor
 import requests
 import pandas as pd
 
@@ -238,13 +239,18 @@ def fetch_all():
     fetchers = {"hyperliquid": fetch_hyperliquid, "lighter": fetch_lighter,
                 "aster": fetch_aster, "paradex": fetch_paradex, "variational": fetch_variational}
     frames, errors = [], {}
-    for name, fn in fetchers.items():
+    # venues are independent network calls: fetch them concurrently (serverless time limits)
+    with ThreadPoolExecutor(max_workers=len(fetchers)) as pool:
+        futs = {name: pool.submit(fn) for name, fn in fetchers.items()}
+    for name, fut in futs.items():
         try:
-            d = fn()
+            d = fut.result()
             if len(d):
                 frames.append(d)
         except Exception as e:
             errors[name] = str(e)[:120]
+    if not frames:
+        raise RuntimeError("all venues failed: " + json.dumps(errors))
     df = pd.concat(frames, ignore_index=True)
     hl = df[df.venue == "hyperliquid"].copy()
     hl["apr"] = hl["rate"] * HOURS_YEAR * 100

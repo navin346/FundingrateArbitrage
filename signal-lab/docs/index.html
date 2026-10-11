@@ -254,8 +254,16 @@ $("theme").addEventListener("click", () => {
   const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
   const next = dark ? "light" : "dark"; applyTheme(next); try { localStorage.setItem("signal-lab-theme", next); } catch (e) {}
 });
-fetch("data/summary.json?t=" + Date.now()).then(r => r.json()).then(render)
-  .catch(e => { $("errors").replaceChildren(el("div", "Could not load data/summary.json: " + e.message, "err")); });
+// On GitHub Pages the data sits next to this page; anywhere else (e.g. Vercel) read it from the
+// gh-pages branch, which the hourly bot run updates (raw.githubusercontent.com caches up to 5 min).
+const RAW = "https://raw.githubusercontent.com/navin346/FundingrateArbitrage/gh-pages/data/summary.json";
+const sources = location.hostname.endsWith("github.io") ? ["data/summary.json", RAW] : [RAW, "data/summary.json"];
+(async () => {
+  for (const u of sources) {
+    try { const r = await fetch(u + (u.startsWith("http") ? "" : "?t=" + Date.now())); if (r.ok) { render(await r.json()); return; } } catch (e) {}
+  }
+  $("errors").replaceChildren(el("div", "Could not load the bot's data yet. The first hourly run may still be publishing.", "err"));
+})();
 </script>
 </body>
 </html>

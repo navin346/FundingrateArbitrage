@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signal Lab</title>
+<meta name="description" content="Paper-trading research bot: which trading signals actually beat a coin flip?">
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f4f3f0; --surface-1: #fcfcfb; --line: #e4e2dc;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7974;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #6250d6; --ctl: #9a9893;
+    --good: #0ca30c; --critical: #d03b3b; --good-text: #006300; --bad-text: #b02a2a;
+    --div-pos: #2a78d6; --div-neg: #e34948; --div-mid: #f0efec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-0: #121211; --surface-1: #1a1a19; --line: #2e2e2c;
+      --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e88;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #9085e9; --ctl: #77766f;
+      --good-text: #5fd35f; --bad-text: #ef7b7b; --div-pos: #3987e5; --div-neg: #e66767; --div-mid: #383835;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-0: #121211; --surface-1: #1a1a19; --line: #2e2e2c;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e88;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #9085e9; --ctl: #77766f;
+    --good-text: #5fd35f; --bad-text: #ef7b7b; --div-pos: #3987e5; --div-neg: #e66767; --div-mid: #383835;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--surface-0); color: var(--text-primary);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: baseline; }
+  h1 { margin: 0; font-size: 22px; }
+  h2 { font-size: 16px; margin: 0 0 4px; }
+  .sub, .note { color: var(--text-secondary); }
+  .note { font-size: 12px; margin: 0 0 10px; }
+  .badge { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px;
+           font-size: 12px; color: var(--text-secondary); margin-right: 6px; }
+  button { font: inherit; color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--line);
+           border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 16px 0; }
+  .tile, .card { background: var(--surface-1); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  .tile b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .tile span { color: var(--text-secondary); font-size: 12px; }
+  .card { margin-bottom: 14px; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  th { color: var(--text-secondary); font-weight: 600; font-size: 12px; }
+  th:first-child, td:first-child, td.l, th.l { text-align: left; }
+  td.wrap-cell { white-space: normal; min-width: 220px; text-align: left; color: var(--text-secondary); }
+  .pos { color: var(--good-text); } .neg { color: var(--bad-text); } .muted { color: var(--text-muted); }
+  .key { display: inline-block; width: 14px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 6px; }
+  .key.dash { border-top-style: dashed; }
+  .chart-box { position: relative; height: 340px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 8px 0 0; font-size: 12px; color: var(--text-secondary); }
+  .heat td { text-align: center; min-width: 74px; font-size: 12px; }
+  .heat td small { display: block; color: var(--text-muted); }
+  .tag { display: inline-block; font-size: 11px; border: 1px solid var(--line); border-radius: 6px; padding: 0 6px;
+         margin: 0 4px 2px 0; color: var(--text-secondary); }
+  .news li { margin: 0 0 8px; } .news a { color: var(--text-primary); }
+  .grid2 { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  .grid2 > * { min-width: 0; }
+  .newsbox { max-height: 520px; overflow-y: auto; }
+  .news a { overflow-wrap: anywhere; }
+  @media (min-width: 900px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+  footer { color: var(--text-muted); font-size: 12px; margin-top: 24px; }
+  .err { border: 1px solid var(--critical); color: var(--bad-text); border-radius: 8px; padding: 8px 12px; margin: 10px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Signal Lab</h1>
+      <div class="sub">Which trading signals actually beat a coin flip? Paper trading only, no real money.</div>
+    </div>
+    <div><span class="badge" id="updated">loading…</span><button id="theme" type="button">Theme</button></div>
+  </header>
+  <div id="errors"></div>
+  <div class="tiles" id="tiles"></div>
+
+  <div class="card">
+    <h2>Scoreboard</h2>
+    <p class="note" id="setup"></p>
+    <div class="scroll"><table id="score"></table></div>
+    <p class="note">A signal is worth real money only if it beats <b>both controls</b> (coin flip and always-long) over
+      100+ trades. Until then, treat every number here as noise.</p>
+  </div>
+
+  <div class="card">
+    <h2>Equity per strategy (virtual $)</h2>
+    <p class="note">Hover for every strategy's value at that time. Dashed grey lines are the controls.</p>
+    <div class="chart-box"><canvas id="equity" aria-label="Equity curves per strategy" role="img"></canvas></div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h2>Today's calls</h2>
+      <p class="note" id="decided"></p>
+      <div class="scroll"><table id="calls"></table></div>
+    </div>
+    <div class="card">
+      <h2>What the bot sees</h2>
+      <p class="note">Trend = % move. Funding APR = what longs pay shorts (baseline ≈ 11%; far above = crowded longs).
+        News = net theme score, last 24h.</p>
+      <div class="scroll"><table id="features"></table></div>
+      <p class="note" id="weights"></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Learned news reactions: average move 24h after a headline theme</h2>
+    <p class="note">This is the "news → asset" correlation matrix, measured live. Arrow = the starting guess.
+      Once a cell has 10+ events, the news strategy uses the <b>measured</b> direction instead of the guess
+      (or ignores it if the evidence is weak). Blue = asset rose, red = fell.</p>
+    <div class="scroll"><table class="heat" id="matrix"></table></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h2>Open positions</h2>
+      <div class="scroll"><table id="positions"></table></div>
+    </div>
+    <div class="card">
+      <h2>Latest themed headlines</h2>
+      <div class="newsbox"><ul class="news" id="news" style="padding-left:18px;margin:0"></ul></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Recent closed trades</h2>
+    <div class="scroll"><table id="trades"></table></div>
+  </div>
+
+  <footer>
+    Prices, funding and open interest: Hyperliquid public API. News: Google News, CoinDesk, Cointelegraph and Federal
+    Reserve RSS. The bot runs hourly on GitHub Actions; each strategy re-decides once a day, with a stop-loss and
+    take-profit checked on every hourly candle. Fees, slippage and funding are charged. Not investment advice.
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const NAMES = {momentum_3d:"Trend 3d", momentum_7d:"Trend 7d", crowd_follow:"Follow crowd", crowd_fade:"Fade crowd",
+  news:"News", combo:"Combo (self-learning)", coin_flip:"Coin flip (control)", buy_hold:"Always long (control)"};
+const ORDER = ["momentum_3d","momentum_7d","crowd_follow","crowd_fade","news","combo","coin_flip","buy_hold"];
+const SLOT = {momentum_3d:"--s1", momentum_7d:"--s2", crowd_follow:"--s3", crowd_fade:"--s4", news:"--s5", combo:"--s6",
+  coin_flip:"--ctl", buy_hold:"--ctl"};
+const CONTROLS = new Set(["coin_flip","buy_hold"]);
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const $ = id => document.getElementById(id);
+const fmt = (x, d=2) => x == null ? "–" : Number(x).toLocaleString(undefined,{minimumFractionDigits:d, maximumFractionDigits:d});
+const sgn = (x, d=2, suf="") => x == null ? "–" : (x > 0 ? "+" : "") + fmt(x, d) + suf;
+const when = ms => new Date(ms).toLocaleString(undefined,{month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"});
+function el(tag, text, cls){ const e=document.createElement(tag); if(text!=null) e.textContent=text; if(cls) e.className=cls; return e; }
+function row(cells, head){ const tr=el("tr"); cells.forEach(c => { const td=el(head?"th":"td"); if(c instanceof Node) td.appendChild(c); else if (c && typeof c==="object") { td.textContent=c.t; if(c.c) td.className=c.c; } else td.textContent=c; tr.appendChild(td); }); return tr; }
+function fill(id, head, rows){ const t=$(id); t.replaceChildren(row(head,true)); rows.forEach(r => t.appendChild(row(r))); if(!rows.length) t.appendChild(row([{t:"nothing yet", c:"muted l"}])); }
+const pc = x => ({t: sgn(x,2,"%"), c: x>0?"pos":x<0?"neg":""});
+const side = s => s>0 ? {t:"▲ long", c:"pos"} : s<0 ? {t:"▼ short", c:"neg"} : {t:"– flat", c:"muted"};
+
+let chart, DATA;
+function render(d){
+  DATA = d;
+  $("updated").textContent = "Updated " + when(d.updated);
+  const errs = Object.entries(d.errors||{});
+  $("errors").replaceChildren(...(errs.length ? [el("div", "Data source issues on the last run: " + errs.map(([k,v])=>k+" ("+v+")").join("; "), "err")] : []));
+  const cfg = d.config;
+  $("setup").textContent = `Each strategy starts with $${cfg.start_equity} (virtual), trades ${Object.values(cfg.assets).join(", ")} at ${cfg.leverage}x total exposure, with a ${cfg.stop_pct}% stop-loss and ${cfg.target_pct}% take-profit per trade.`;
+  const st = d.stats, first = d.curve[0]?.t, days = first ? (d.updated-first)/864e5 : 0;
+  const ranked = ORDER.filter(s=>st[s]).sort((a,b)=>st[b].equity-st[a].equity);
+  const MIN_TRADES = 30;
+  const best = ranked.find(s=>!CONTROLS.has(s) && st[s].trades >= MIN_TRADES);
+  const coin = st.coin_flip;
+  const tiles = [
+    [days < 1 ? "<1" : fmt(days,0), "days running"],
+    [ranked.reduce((n,s)=>n+st[s].trades,0), "closed paper trades"],
+    [best ? NAMES[best] : "too early", best ? "best signal so far" : "best signal (needs 30+ trades)"],
+    [best ? sgn(st[best].return_pct,2,"%") : "–", "its return (vs coin flip " + sgn(coin?.return_pct,2,"%") + ")"],
+    [d.events_logged, "news events measured"],
+  ];
+  $("tiles").replaceChildren(...tiles.map(([v,l]) => { const t=el("div",null,"tile"); t.append(el("b", String(v)), el("span", l)); return t; }));
+
+  fill("score", ["Strategy","Equity","Return","Trades","Win rate","Avg P&L / trade","Max drawdown","Beats both controls?",{t:"How it decides",c:"l"}],
+    ranked.map(s => { const x=st[s]; const beats = !CONTROLS.has(s) && x.equity>st.coin_flip.equity && x.equity>st.buy_hold.equity;
+      const key=el("span"); const k=el("span",null,"key"+(CONTROLS.has(s)?" dash":"")); k.style.borderColor=css(SLOT[s]); key.append(k, document.createTextNode(NAMES[s]));
+      return [key, "$"+fmt(x.equity), pc(x.return_pct), x.trades, x.win_pct==null?"–":fmt(x.win_pct,1)+"%",
+        x.avg_pnl==null?"–":sgn(x.avg_pnl,2), {t: fmt(x.max_dd_pct,1)+"%", c: x.max_dd_pct<0?"neg":""},
+        CONTROLS.has(s) ? {t:"control", c:"muted"} : x.trades < MIN_TRADES ? {t:"too early ("+x.trades+"/"+MIN_TRADES+" trades)", c:"muted"}
+          : beats ? {t:"✓ yes, so far", c:"pos"} : {t:"✗ no", c:"neg"},
+        {t:x.description, c:"wrap-cell"}]; }));
+
+  drawChart(d);
+  $("legend").replaceChildren(...ORDER.map(s => { const w=el("span"); const k=el("span",null,"key"+(CONTROLS.has(s)?" dash":"")); k.style.borderColor=css(SLOT[s]); w.append(k, document.createTextNode(NAMES[s])); return w; }));
+
+  const assets = Object.keys(cfg.assets);
+  $("decided").textContent = d.decided_at ? "Decided " + when(d.decided_at) + " (re-decides daily after 00:00 UTC; stops can close positions any hour)." : "";
+  fill("calls", ["Strategy", ...assets], ORDER.filter(s=>d.signals[s]).map(s => [NAMES[s], ...assets.map(a => side(d.signals[s][a]))]));
+  fill("features", ["Asset","Price","1d","3d","7d","Funding APR","News"], assets.map(a => { const f=d.features[a]||{};
+    return [cfg.assets[a], fmt(f.price, f.price>1000?0:2), pc(f.ret_1d), pc(f.ret_3d), pc(f.ret_7d), {t: fmt(f.funding_apr_24h,1)+"%"}, {t: sgn(f.news_score,0), c: f.news_score>0?"pos":f.news_score<0?"neg":""}]; }));
+  const w = d.weights||{};
+  $("weights").textContent = "Combo weights now: " + Object.entries(w).map(([k,v]) => NAMES[k]+" "+fmt(v,2)).join(" · ") + "  (1.00 each until a signal has 15 trades; then weight = how far its win rate is above 50%).";
+
+  // reaction matrix
+  const themes = Object.keys(d.priors);
+  const mt = $("matrix"); mt.replaceChildren(row(["Theme", ...assets.map(a=>cfg.assets[a])], true));
+  const maxAbs = Math.max(0.5, ...themes.flatMap(t => assets.map(a => Math.abs(d.matrix[t]?.[a]?.mean_24h || 0))));
+  themes.forEach(t => { const tr=el("tr"); tr.appendChild(el("td", t.replace(/_/g," "), "l"));
+    assets.forEach(a => { const c=d.matrix[t]?.[a]; const p=d.priors[t][a]||0; const td=el("td");
+      const guess = p>0?"▲":p<0?"▼":"·";
+      if (c && c.n) { const m=c.mean_24h; td.append(document.createTextNode(sgn(m,2,"%")), el("small", "n="+c.n+" · guess "+guess));
+        const k=Math.min(1, Math.abs(m)/maxAbs)*(c.n>=10?0.85:0.35);
+        td.style.background = `color-mix(in oklab, ${m>=0?css("--div-pos"):css("--div-neg")} ${Math.round(k*100)}%, ${css("--div-mid")})`;
+        td.title = `${t}: ${a} moved ${sgn(m,2,"%")} on average 24h later (n=${c.n}, sd ${fmt(c.sd_24h,2)}%)`;
+      } else { td.append(el("span","learning","muted"), el("small","guess "+guess)); }
+      tr.appendChild(td); }); mt.appendChild(tr); });
+
+  fill("positions", ["Strategy","Asset","Side","Entry","Now","Move","Stop","Target"],
+    ORDER.flatMap(s => Object.entries(d.positions[s]||{}).map(([a,p]) => { const now=d.marks[a]; const mv=now? p.side*(now/p.entry-1)*100 : null;
+      return [NAMES[s], cfg.assets[a], side(p.side), fmt(p.entry, p.entry>1000?0:2), fmt(now, now>1000?0:2), pc(mv), fmt(p.stop, p.stop>1000?0:2), fmt(p.target, p.target>1000?0:2)]; })));
+  fill("trades", ["Closed","Strategy","Asset","Side","Move","P&L ($)","Why"],
+    d.trades.slice(0,60).map(t => [when(t.closed), NAMES[t.strategy], cfg.assets[t.asset]||t.asset, side(t.side==="long"?1:-1), pc(t.move_pct), {t: sgn(t.pnl,2), c: t.pnl>0?"pos":"neg"}, t.reason]));
+  const ul=$("news"); ul.replaceChildren(...d.news.slice(0,25).map(n => { const li=el("li"); (n.themes||[]).forEach(t=>li.appendChild(el("span", t.replace(/_/g," "), "tag")));
+    const a=el("a", n.title); if (/^https?:\/\//.test(n.link||"")) { a.href=n.link; a.target="_blank"; a.rel="noopener noreferrer"; } li.appendChild(a);
+    li.appendChild(el("div", n.source + " · " + when(n.ts*1000), "muted")); return li; }));
+  if(!d.news.length) ul.appendChild(el("li","no themed headlines yet","muted"));
+}
+
+function drawChart(d){
+  const ctx = $("equity");
+  const ds = ORDER.map(s => ({label: NAMES[s], data: d.curve.map(p => ({x: p.t, y: p.eq[s]})), borderColor: css(SLOT[s]),
+    borderWidth: 2, borderDash: CONTROLS.has(s) ? [5,4] : [], pointRadius: 0, pointHoverRadius: 4, tension: 0,
+    pointHoverBorderColor: css("--surface-1"), pointHoverBorderWidth: 2}));
+  const grid = css("--line"), ink = css("--text-secondary");
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, {type: "line", data: {datasets: ds}, options: {
+    responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
+    interaction: {mode: "index", intersect: false},
+    scales: {x: {type: "linear", ticks: {color: ink, maxTicksLimit: 7, callback: v => new Date(v).toLocaleDateString(undefined,{month:"short",day:"numeric"})}, grid: {color: grid}},
+             y: {ticks: {color: ink, callback: v => "$"+fmt(v)}, grid: {color: grid}}},
+    plugins: {legend: {display: false}, tooltip: {itemSort: (a,b) => b.parsed.y - a.parsed.y,
+      callbacks: {title: it => it.length ? when(it[0].parsed.x) : "", label: it => " $" + fmt(it.parsed.y) + "  " + it.dataset.label}}}}});
+}
+
+function applyTheme(t){ if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; if (DATA) render(DATA); }
+try { const t = localStorage.getItem("signal-lab-theme"); if (t) applyTheme(t); } catch (e) {}
+$("theme").addEventListener("click", () => {
+  const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  const next = dark ? "light" : "dark"; applyTheme(next); try { localStorage.setItem("signal-lab-theme", next); } catch (e) {}
+});
+// On GitHub Pages the data sits next to this page; anywhere else (e.g. Vercel) read it from the
+// gh-pages branch, which the hourly bot run updates (raw.githubusercontent.com caches up to 5 min).
+const RAW = "https://raw.githubusercontent.com/navin346/FundingrateArbitrage/gh-pages/data/summary.json";
+const sources = location.hostname.endsWith("github.io") ? ["data/summary.json", RAW] : [RAW, "data/summary.json"];
+(async () => {
+  for (const u of sources) {
+    try { const r = await fetch(u + (u.startsWith("http") ? "" : "?t=" + Date.now())); if (r.ok) { render(await r.json()); return; } } catch (e) {}
+  }
+  $("errors").replaceChildren(el("div", "Could not load the bot's data yet. The first hourly run may still be publishing.", "err"));
+})();
+</script>
+</body>
+</html>

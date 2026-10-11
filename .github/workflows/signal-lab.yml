@@ -1,0 +1,52 @@
+# Signal Lab: hourly paper-trading tick + dashboard publish to GitHub Pages (gh-pages branch).
+# State lives on gh-pages as a single force-pushed commit, so the repo never grows.
+name: signal-lab
+on:
+  schedule:
+    - cron: "17 * * * *"      # hourly, off the top of the hour (less queueing)
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths: ["signal-lab/**", ".github/workflows/signal-lab.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: signal-lab
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: signal-lab
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: tests
+        run: python tests/test_core.py
+      - name: restore previous state from gh-pages
+        run: |
+          mkdir -p docs/data
+          if git fetch --depth 1 origin gh-pages 2>/dev/null; then
+            git show FETCH_HEAD:data/state.json > docs/data/state.json 2>/dev/null || rm -f docs/data/state.json
+          fi
+          ls -la docs/data
+      - name: run one tick
+        run: python -m lab.main
+      - name: publish dashboard + data
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./signal-lab/docs
+          publish_branch: gh-pages
+          force_orphan: true
+          user_name: signal-lab-bot
+          user_email: signal-lab-bot@users.noreply.github.com
+          commit_message: "signal-lab tick"

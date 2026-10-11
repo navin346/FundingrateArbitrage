@@ -256,7 +256,7 @@ $("theme").addEventListener("click", () => {
 });
 // On GitHub Pages the data sits next to this page; anywhere else (e.g. Vercel) read it from the
 // gh-pages branch, which the hourly bot run updates (raw.githubusercontent.com caches up to 5 min).
-const RAW = "https://raw.githubusercontent.com/navin346/FundingrateArbitrage/gh-pages/data/summary.json";
+const RAW = "https://raw.githubusercontent.com/navin346/signal-lab/gh-pages/data/summary.json";
 const sources = location.hostname.endsWith("github.io") ? ["data/summary.json", RAW] : [RAW, "data/summary.json"];
 (async () => {
   for (const u of sources) {

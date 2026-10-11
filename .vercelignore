@@ -7,4 +7,7 @@ DEPLOY.md
 .env*
 requirements-bot.txt
 requirements-streamlit.txt
-signal-lab/
+signal-lab/lab/
+signal-lab/tests/
+signal-lab/README.md
+signal-lab/requirements.txt

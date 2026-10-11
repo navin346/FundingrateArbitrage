@@ -4,5 +4,11 @@
     "api/scan.py": {
       "maxDuration": 60
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/lab",
+      "destination": "/signal-lab/docs/index.html"
+    }
+  ]
 }

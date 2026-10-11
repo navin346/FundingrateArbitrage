@@ -51,6 +51,7 @@ class Params:
     smooth_entry_h: int = 1
     smooth_exit_h: int = 1
     min_hold_h: int = 0
+    leg_stop_pct: float = 0.0             # >0: close BOTH legs if either leg moves this % against it
     rt_cost_pct: float = RT_COST_PCT      # round-trip fees+spread, both legs, % of notional
     cost_mult: float = 1.0                # stress multiplier on per-symbol measured costs
     cooldown_per_symbol: bool = False     # True = fix: block re-entry in EITHER direction
@@ -167,7 +168,13 @@ def simulate(D, p, t_start, t_end):
             div = abs(ph - pa) / ((ph + pa) / 2) * 100
             held = t - pos["t"]
             reason = None
-            if unreal <= -p.stop_loss:
+            if p.leg_stop_pct > 0:
+                lh = (ph / pos["px0h"] - 1) * 100            # long-HL leg gains when price rises
+                la = (pa / pos["px0a"] - 1) * 100
+                worst = max(-lh, la) if pos["short_ast"] else max(lh, -la)
+            if p.leg_stop_pct > 0 and worst >= p.leg_stop_pct:
+                reason = "leg_stop"
+            elif unreal <= -p.stop_loss:
                 reason = "stop_loss"
             elif div > p.max_px_div_exit:
                 reason = "px_divergence"
@@ -221,6 +228,7 @@ def simulate(D, p, t_start, t_end):
                 return n * ((fa - fh) if short_ast else (fh - fa))
 
             open_[s] = {"t": t, "short_ast": short_ast, "gross": float(g[s]), "below": 0,
+                        "px0h": ph[s], "px0a": pa[s],
                         "basis": basis, "fund": fund}
             break
     for s in list(open_):

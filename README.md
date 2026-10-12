@@ -48,7 +48,7 @@ Telegram alerts on every action + daily heartbeat.
 
 **Backtest:** `python -m backtest.run` replays the strategy on 4 months of real Hyperliquid/Aster funding + prices; results and caveats in [backtest/RESULTS.md](backtest/RESULTS.md) (headline: default settings churn and lose to fees; patient settings are roughly break-even to slightly positive).
 
-**Signal Lab (paper-trading research bot):** now in its own repo, [navin346/signal-lab](https://github.com/navin346/signal-lab); it tests trend, positioning and news signals on BTC, ETH, SOL, gold, oil and Nasdaq against a coin-flip control; live dashboard at https://navin346.github.io/signal-lab/ (backup view at `/lab` on this repo's Vercel deployment).
+**Signal Lab (paper-trading research bot):** now in its own repo, [navin346/signal-lab](https://github.com/navin346/signal-lab); it paper-trades a market-structure bot, a top-30 relative-value bot, an AI news + regime bot and a trend bot against coin-flip controls; live dashboard at https://navin346.github.io/signal-lab/ (backup view at `/lab` on this repo's Vercel deployment).
 
 **Viability study:** [backtest/STUDY.md](backtest/STUDY.md) answers whether funding arbitrage is worth building a system around (12 months, walk-forward). Short answer: spike-chasing loses to fees; persistent carry is a thin, small-cap-dependent edge.
 
